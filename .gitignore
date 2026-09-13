@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Next.js build output and generated types
+/.next/
+/.next-dev/
+/out/
+/build/
+/dist/
+next-env.d.ts
+*.tsbuildinfo
+
+# Local workspace state, temporary writes, and backups
+# Default/demo data in lib/seed.ts remains version-controlled.
+/data/
+
+# Environment variables and credentials
+.env*
+!.env.example
+*.pem
+*.key
+
+# Logs and package-manager diagnostics
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test reports and tooling caches
+/coverage/
+/.nyc_output/
+/playwright-report/
+/test-results/
+/.cache/
+/.turbo/
+.eslintcache
+
+# Local deployment metadata
+/.vercel/
+/.netlify/
+
+# Editor settings and temporary files
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# Operating-system metadata
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Keep package-lock.json: npm ci relies on it for reproducible installs.

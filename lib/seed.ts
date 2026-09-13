@@ -1,0 +1,13 @@
+import {Store,Job} from './model';
+const rows = [
+ ['Senior Frontend Engineer','Linear','Worldwide · Remote','React,TypeScript,Next.js','$140k – $190k','Build thoughtful interfaces for the next generation of project management. Work remotely from anywhere in the world. Own frontend architecture and collaborate closely with product designers.'],
+ ['Senior Full-Stack Engineer','Vercel','Worldwide · Remote','React,TypeScript,Next.js,Node.js','$150k – $210k','Help developers build a better web. Worldwide remote team. Build scalable tools with Next.js and Node.js, and shape our developer experience.'],
+ ['Lead Frontend Engineer','Pathao','Dhaka, Bangladesh · Hybrid','React,TypeScript,Angular','৳180k – ৳260k / mo','Lead the frontend platform team in Dhaka, Bangladesh. Mentor engineers, improve performance, and build products used by millions.'],
+ ['Senior Software Engineer','Personio','Berlin, Germany · Hybrid','React,TypeScript,Node.js,GraphQL','€85k – €110k','Build people-focused software with a collaborative product team. We offer visa sponsorship and relocation assistance for this role.'],
+ ['Staff Frontend Engineer','Remote','Worldwide · Remote','React,TypeScript,JavaScript','$160k – $220k','Shape the architecture of our global employment platform. This is a worldwide remote position. Partner with engineering teams on accessibility, reliability and design systems.'],
+ ['Senior React Developer','Chaldal','Dhaka, Bangladesh · On-site','React,TypeScript,Node.js','৳150k – ৳220k / mo','Build reliable commerce experiences in Dhaka, Bangladesh. Work on a fast-moving product team with ownership across the stack.'],
+ ['Senior Full-Stack Engineer','Adyen','Amsterdam, Netherlands','React,TypeScript,JavaScript,GraphQL','€90k – €120k','Build financial technology products used around the world. Relocation assistance is available to successful international applicants.'],
+ ['Lead Software Engineer','Buffer','Remote · APAC','React,TypeScript,Node.js,AWS','$120k – $170k','Lead a product engineering team in the APAC region. Remote availability depends on country and timezone.'],
+ ['Senior Frontend Engineer','Example US Company','Remote · US only','React,TypeScript','$150k – $200k','Candidates must reside in the United States. Build accessible interfaces and mentor teammates.']
+];
+export function seed():Store{return {profile:{name:'Bapin',experience:8,skills:['React','TypeScript','Next.js','Angular','Node.js','JavaScript','GraphQL']},sources:[],jobs:rows.map((r,i)=>({id:`demo-${i}`,title:r[0],company:r[1],location:r[2],skills:r[3].split(','),salary:r[4],description:r[5],level:r[0].split(' ')[0],posted:new Date(Date.now()-i*8*3600000).toISOString(),url:'',source:'Demo',demo:true,status:'New'} as Job))};}

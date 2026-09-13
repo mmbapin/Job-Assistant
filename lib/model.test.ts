@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {classify,match} from './model';
+import {seed} from './seed';
+const {jobs,profile}=seed();
+test('US-only remote is not eligible from Bangladesh',()=>{const c=classify(jobs[8]);assert.equal(c.eligible,false);assert.equal(c.group,'Other');});
+test('ambiguous regional remote requires verification',()=>assert.equal(classify(jobs[7]).eligible,false));
+test('positive relocation evidence is preserved',()=>assert.match(classify(jobs[3]).evidence||'',/visa sponsorship/));
+test('negated sponsorship does not qualify',()=>assert.equal(classify({...jobs[3],description:'We do not offer visa sponsorship.'}).eligible,false));
+test('worldwide role with matching skills ranks higher than restricted role',()=>assert.ok(match(jobs[0],profile).score>match(jobs[8],profile).score));
+test('scores respond to profile and stay bounded',()=>{for(const job of jobs){const score=match(job,profile).score;assert.ok(score>=0&&score<=100);}assert.ok(match(jobs[0],{...profile,skills:[]}).score<match(jobs[0],profile).score);});

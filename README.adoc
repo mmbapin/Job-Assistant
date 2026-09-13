@@ -1,0 +1,375 @@
+= Job Assistant
+:toc: left
+:toclevels: 3
+:sectnums:
+:source-highlighter: highlight.js
+:icons: font
+
+A personal job-search workspace for senior software engineers, with Bangladesh company sources, global company boards, and optional Adzuna discovery.
+
+Job Assistant collects public vacancies, normalizes them, explains their match to your profile, and helps track your applications. It fetches real jobs first; when collection fails or returns no jobs, it displays clearly labeled fictional demo jobs with an explanatory banner.
+
+== Technology used
+
+[cols="1,1,3",options="header"]
+|===
+|Layer |Technology |Purpose
+|Application framework |Next.js 15, App Router |UI, page metadata, and server-side API route handlers in one application.
+|User interface |React 19 |Interactive search, filters, profile editing, source management, and application tracking.
+|Language |TypeScript 5 |Shared models and static checking across client and server code.
+|Runtime |Node.js |HTTPS requests, DNS resolution, hashing, and filesystem persistence. Development has been verified with Node.js 22.
+|Styling |CSS |Responsive layouts, source cards, job details, and feedback banners. No CSS component framework is required.
+|Icons |Lucide React |Interface icons.
+|HTML parsing |Cheerio |Career-page extraction and schema.org JobPosting parsing, without executing page JavaScript.
+|Crawler policy |robots-parser |Checks robots.txt when reading career pages.
+|Persistence |Local JSON file |Stores jobs, profile settings, and sources in `data/store.json`.
+|Tests |Node.js test runner and tsx |Runs TypeScript regression tests with `npm test`.
+|Package management |npm |Dependency installation, lockfile, and development scripts.
+|===
+
+Dependency ranges are declared in `package.json`; `package-lock.json` records resolved versions. PostCSS is a transitive build dependency with a patched version override.
+
+The current implementation does not use PostgreSQL, an ORM, Redis, a queue, or an AI model. Matching uses deterministic rules.
+
+== Architecture
+
+=== Application structure
+
+The application runs as a single Next.js application. The browser calls local API routes; the server collects external job data and owns persistence.
+
+[source,text]
+----
+Browser: React dashboard
+  |
+  +-- GET /api/data ----------------------------+
+  |                                            |
+  +-- POST /api/data --> validate mutations ----+--> Local JSON store
+  |                                            |    data/store.json
+  +-- POST /api/sync                            |
+         |                                     |
+         v                                     |
+    Enabled sources                            |
+         |                                     |
+         +-- Public APIs                       |
+         |   Greenhouse / Lever / Ashby        |
+         |   Adzuna / Tekarsh / WSD             |
+         |                                     |
+         +-- Permitted HTML                    |
+             Cefalo / Vivasoft                 |
+             Optimizely / BRAC IT              |
+         |                                     |
+         v                                     |
+    Normalize jobs --> deduplicate and merge --+
+         |
+         v
+    Return current job IDs and source errors
+         |
+         v
+    Browser: choose real feed or demo fallback
+         |
+         v
+    Calculate match scores --> search / filter / track
+----
+
+External requests pass through `lib/safe-fetch.ts`. Career-page requests additionally pass through the robots.txt checks in `lib/sources.ts`.
+
+=== Source registration
+
+. A user adds a career URL or a supported provider and board slug.
+. The server validates the input and detects known company adapters or a supported ATS.
+. For other career URLs, it checks the page for links or embeds pointing to Greenhouse, Lever, or Ashby.
+. Where HTML collection is enabled, supported company parsers or JobPosting structured data provide a fallback.
+. Unsupported pages remain on the watchlist with a detection explanation.
+
+Source registration alone does not import jobs. Collection runs on dashboard load and when the user selects *Sync jobs* or *Retry real jobs*. Previously unsupported URLs are detected again during sync. Paused sources are skipped.
+
+The source categories *Bangladesh* and *Global* organize the watchlist. They do not override an individual job's actual location or eligibility.
+
+=== Collection and persistence
+
+Enabled sources are collected concurrently. A failure in one source is recorded on that source and does not discard successful results from others.
+
+Collectors map source-specific responses into a shared job model. Jobs are deduplicated by their generated ID or an exact original-listing URL. Existing application statuses and stored publication timestamps are preserved during updates.
+
+`lib/store.ts` serializes writes within the Node process. Each update writes a temporary file and renames it over `data/store.json`. This avoids overlapping in-process writes and partial replacement of the main file; it is not a multi-process database or a backup system.
+
+The sync response includes IDs returned by the current collection. The Discover feed uses those IDs instead of showing every historical job in storage. Stored saved jobs and application history remain available even when a listing no longer appears in the current feed.
+
+=== Real jobs and demo fallback
+
+[cols="2,3",options="header"]
+|===
+|Fetch outcome |Dashboard behavior
+|Real jobs returned, all sources successful |Show real jobs only, without a fallback banner.
+|Some sources fail but others return jobs |Show the successful real results and a warning about unavailable sources.
+|Sources return no matching jobs |Show fictional demo jobs and an empty-result explanation.
+|Collection fails and returns no real jobs |Show fictional demo jobs and an error banner.
+|No enabled sources |Show demo jobs with instructions to add or enable a source.
+|HTTP failure, timeout, or invalid response |Exit loading and show demo jobs with the corresponding feedback.
+|Search or filters hide all results |Show the normal empty state; do not switch to demos.
+|===
+
+The browser allows 15 seconds for workspace loading and 60 seconds for a collection request. A browser timeout does not necessarily cancel collection already running on the server.
+
+Demo jobs are not actual vacancies or salary claims. Demo bookmarks and application-status changes stay in the current browser session. The fallback does not delete real saved jobs or applications.
+
+=== Relevance scoring
+
+Matching runs in the browser using `lib/model.ts` and the saved candidate profile.
+
+[cols="2,1",options="header"]
+|===
+|Factor |Maximum points
+|Recognized job skills present in the candidate profile |55
+|Senior, Lead, or Staff title |15
+|Frontend or full-stack title |15
+|Location classified as a fit |15
+|Total |100
+|===
+
+The skill portion measures coverage of the job's recognized skills. The details view shows scoring reasons, recognized missing skills, and location feedback.
+
+Location classification distinguishes Bangladesh, Global Remote, Relocation, and other locations. Regional or vague remote language is flagged for verification. Relocation detection shows the matched employer statement.
+
+These are text heuristics, not a guarantee of work authorization or employer eligibility. The recognized skill list is limited. Years of experience are stored in the profile but are not yet used in scoring.
+
+== Features
+
+* Search by role, company, or technology.
+* Bangladesh, Global Remote, Relocation / Visa, and All tabs.
+* Technology, seniority, and location-fit filters.
+* Sorting by match score or posting date.
+* Match explanations and links to original job listings.
+* Saved jobs and application stages: Applied, Interview, Rejected, and Offer.
+* Hidden jobs.
+* Editable candidate profile.
+* Career-page watchlist, source detection, pause/enable controls, and per-source sync feedback.
+* Real-job-first loading with demo fallback and retry actions.
+
+== Supported sources
+
+[cols="1,2,3",options="header"]
+|===
+|Source |Interface |Current scope
+|Greenhouse |Public Job Board API |A configured company board; no key required for public postings.
+|Lever |Public Postings API |A configured company board, including EU boards detected from career URLs.
+|Ashby |Public job-posting API |A configured company board, including available compensation summaries.
+|Adzuna |Authenticated discovery API |First 50 results for `software engineer` per configured country; requires app credentials.
+|Tekarsh |Public career-page JSON API |Active engineering roles whose stated deadline has not passed.
+|WSD |Public BambooHR careers endpoints |Development department and Dhaka city. All titles/languages within that scope are accepted; details are checked for Open status.
+|Cefalo |Company HTML parser |Engineering-related job-detail links and descriptions.
+|Vivasoft |Company HTML parser |Engineering-related job-detail links and descriptions.
+|Optimizely |Public HTML search and detail pages |Senior Software Engineer titles in Dhaka. Local checks exclude unrelated keyword-search results. Pagination is bounded to 10 pages.
+|BRAC IT |Public HTML and JobPosting data |Engineering category, including database roles. Deadlines are checked through the end of the stated Bangladesh calendar day.
+|Other permitted career pages |JobPosting structured data |Supported when structured postings are present on the registered page and HTML collection is enabled.
+|Bdjobs |Manual browsing link |Automated collection is not connected.
+|===
+
+Greenhouse, Lever, and Ashby require company boards; they do not discover every company's jobs automatically. Adzuna supplies broader discovery but remains inactive until credentials and country sources are configured. Bangladesh discovery uses company sources rather than an Adzuna Bangladesh feed.
+
+Source counts and vacancies change over time. A connected source may legitimately return zero matching roles.
+
+== Getting started
+
+=== Prerequisites
+
+* Node.js 22 and npm.
+* A writable local project directory.
+* Internet access to the configured public job sources.
+
+=== Install and run
+
+[source,shell]
+----
+npm ci
+npm run dev
+----
+
+Open http://localhost:3000[Job Assistant].
+
+On a fresh checkout, no company sources are configured. The application shows a demo preview until sources are added. Locally registered sources are stored in the ignored `data/store.json` file, so they are not automatically shared through Git.
+
+=== Add career sources
+
+. Open *Sources*.
+. Choose *Career URL* or *Direct API board*.
+. Enter a company/source name and choose Bangladesh or Global.
+. Paste the URL, or enter the provider and board slug.
+. For permitted HTML sources, enable HTML collection when needed.
+. Add the source, then select *Sync jobs*.
+
+For example, `https://jobs.lever.co/example` uses the board slug `example`. Use a real company's slug when configuring a source.
+
+Known WSD, Optimizely, and BRAC IT URLs apply the fixed filters documented above. BRAC IT's recognized HTTP career URL is upgraded to HTTPS. Other career URLs must use public HTTPS addresses.
+
+=== Configure Adzuna
+
+Copy the example environment file:
+
+[source,shell]
+----
+cp .env.example .env.local
+----
+
+Set your server-side credentials:
+
+[source,properties]
+----
+ADZUNA_APP_ID=your_app_id
+ADZUNA_APP_KEY=your_app_key
+----
+
+Restart the server. In *Sources*, add a Direct API source with provider Adzuna and a supported country code such as `gb`, `us`, `de`, or `sg` in the board field. Use the Global category.
+
+Do not commit `.env.local` or expose credentials through `NEXT_PUBLIC_` environment variables. The supplied `.env.example` contains placeholders only.
+
+== Project layout
+
+[source,text]
+----
+app/
+  layout.tsx                  Application metadata and root layout
+  page.tsx                    Dashboard, filters, details, and tracking UI
+  globals.css                 Responsive application styles
+  components/sources.tsx      Source registration and watchlist UI
+  api/data/route.ts           Read workspace and apply mutations
+  api/sync/route.ts           Collect, merge, and report current jobs
+lib/
+  model.ts                    Shared types, eligibility, and scoring
+  sources.ts                  Source validation, detection, robots checks
+  safe-fetch.ts               Protected outbound HTTPS client
+  collect.ts                  Collectors, HTML parsers, normalization
+  wsd.ts                      WSD's BambooHR response and scope handling
+  store.ts                    Local persistence and serialized writes
+  job-feed.ts                 API loading and real/demo feed decisions
+  seed.ts                     Default profile and fictional demo jobs
+  request-origin.ts           Origin checks for write requests
+  *.test.ts                   Regression tests
+scripts/
+  check-sources.ts            Explicit live registration/sync check
+
+data/store.json               Local workspace state; ignored by Git
+.env.example                  Optional Adzuna configuration template
+next.config.ts                Build output and file tracing configuration
+----
+
+`wsd.ts` is part of the same collection pipeline as every other adapter. Its separate file keeps BambooHR-specific filtering out of the collector dispatcher; it is not a separate service.
+
+== Data model
+
+[cols="1,3",options="header"]
+|===
+|Entity |Important fields
+|Job |ID, title, company, location, description, skills, level, posting date, original URL, salary text, source ID, demo flag, and tracking status.
+|Source |ID, company, provider, board, URL, category, country, enabled flag, HTML permission flag, detection explanation, last sync, last count, and error.
+|Profile |Name, years of experience, and recognized skills.
+|Store |Jobs, sources, and profile in one persisted workspace.
+|Feed state |Real/demo mode, outcome reason, banner message, and current job IDs. Managed in the browser.
+|===
+
+== Local API
+
+[cols="1,1,3",options="header"]
+|===
+|Method |Path |Behavior
+|GET |`/api/data` |Returns the stored workspace or initial seed state.
+|POST |`/api/data` |Applies a validated mutation and returns the updated workspace.
+|POST |`/api/sync` |Collects enabled sources and returns `data`, `added`, `jobIds`, and `errors`.
+|===
+
+Supported mutation actions:
+
+* `status`: update a job using `id` and `status`.
+* `profile`: save `name`, `experience`, and `skills`.
+* `source`: register a URL-based or board-based source.
+* `toggleSource`: pause or enable a source by `id`.
+* `deleteSource`: remove a source by `id`.
+
+Example URL-based source payload:
+
+[source,json]
+----
+{
+  "action": "source",
+  "company": "Example Company",
+  "url": "https://jobs.lever.co/example",
+  "category": "Global",
+  "country": "Global"
+}
+----
+
+`added` counts newly stored jobs; `jobIds` identifies jobs returned by the current sync, including existing jobs. `errors` counts failed sources. Removing a source does not delete its previously stored job history.
+
+== Development and validation
+
+[source,shell]
+----
+npm test
+npm run typecheck
+npm run build
+----
+
+Tests cover matching, eligibility, source detection, destination validation, provider parsing, company filters, deadline handling, and API/demo fallback scenarios. Mocked requests let most checks run without external service access.
+
+The script below performs a live, state-changing check:
+
+[source,shell]
+----
+node --import tsx scripts/check-sources.ts
+----
+
+It registers the predefined Field Nation, Tekarsh, Cefalo, and Vivasoft watchlist entries when missing, then syncs all enabled sources twice to check duplicate handling. It requires a running local app and internet access. It is not part of `npm test`.
+
+Development output goes to `.next-dev`; production output goes to `.next`, so a production build does not overwrite development artifacts.
+
+=== Run a production build locally
+
+[source,shell]
+----
+npm run build
+npm start
+----
+
+Stop any development server using port 3000 before starting the production server on that port.
+
+== Request safety and deployment
+
+The outbound HTTP client uses public HTTPS destinations, validates DNS answers, and pins its connection to a validated IPv4 address. It rejects private/reserved destinations, URL credentials, and nonstandard ports. Requests have a 20-second deadline, a 5 MB response limit, and bounded redirects. IPv6-only destinations are not supported.
+
+Career-page readers check robots.txt and recheck redirect destinations before fetching their content. These checks do not establish permission under a site's terms. The app does not execute remote JavaScript, log in to source sites, or bypass access controls.
+
+Write routes perform origin checks when an Origin header is supplied. There is currently no authentication, authorization, or application rate limiting. Origin checks are not a substitute for those controls.
+
+This version is intended for a single user running one Node process with a persistent writable disk. Do not expose the write APIs as a public shared service. Ephemeral serverless filesystems and multiple application instances are not supported by the JSON store.
+
+Before a shared production deployment, add authentication, durable database storage, appropriate request controls, backups, and collection scheduling suited to the hosting environment.
+
+== Current limitations and next steps
+
+* No scheduled background collection, queue workers, or email alerts.
+* No automatic applications or employer messaging.
+* Adzuna discovery currently uses one query and one result page per configured country.
+* No automatic global company discovery for Greenhouse, Lever, or Ashby.
+* HTML support is adapter-dependent; not every career URL works.
+* Cefalo/Vivasoft HTML collection inspects at most 25 detail pages per sync.
+* BRAC IT pagination is not implemented; detecting it produces an explicit error.
+* Missing publication dates fall back to collection time. Stored timestamps are preserved on later syncs.
+* Historical jobs are retained in storage; there is no universal expired-job cleanup process.
+* Duplicate detection uses IDs and exact URLs, not fuzzy matching across providers.
+* No CV parsing, country-filter UI, or company-wide blocking.
+* Match scores use recognized skills and title/location heuristics rather than full requirement analysis.
+
+Potential next steps are a configured global company watchlist, broader Adzuna queries and pagination, authenticated database-backed persistence, and scheduled alerts.
+
+== Troubleshooting
+
+[cols="1,3",options="header"]
+|===
+|Symptom |What to check
+|Demo preview appears |Read the banner. Add/enable sources, retry failed collection, or wait for new matching vacancies.
+|One source fails |Open Sources and read its error. Confirm the URL/slug and whether the site changed, timed out, or disallows collection.
+|Adzuna asks for credentials |Set both variables in `.env.local` and restart the server.
+|A company returns zero jobs |Check its configured category/title/location filters and the employer's current openings. Zero is not necessarily an error.
+|Changes are not retained after deployment |Use a persistent writable disk and a single Node process; ephemeral hosting does not preserve the local JSON store.
+|Browser-extension hydration warning |The root body suppresses attribute warnings caused by extensions such as Grammarly. Other hydration warnings still require investigation.
+|===
