@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Modern Green / Emerald Gradient -->
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="50%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#064E3B"/>
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#064E3B" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Base Card -->
+  <rect width="512" height="512" rx="112" fill="#FFFFFF"/>
+  
+  <g filter="url(#softGlow)">
+    <!-- Briefcase Handle -->
+    <path d="M196 148 C196 126 214 108 236 108 L276 108 C298 108 316 126 316 148 L316 172 L196 172 Z" 
+          fill="none" 
+          stroke="url(#greenGrad)" 
+          stroke-width="24" 
+          stroke-linejoin="round"/>
+
+    <!-- Briefcase Body -->
+    <rect x="96" y="168" width="320" height="236" rx="44" fill="url(#greenGrad)"/>
+
+    <!-- Cutout / Flap Accent Line -->
+    <path d="M96 248 L206 298 C238 312 274 312 306 298 L416 248" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="14" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" 
+          opacity="0.95"/>
+
+    <!-- Primary AI Sparkle Centerpiece -->
+    <path d="M256 210 
+             C256 250 240 266 200 266 
+             C240 266 256 282 256 322 
+             C256 282 272 266 312 266 
+             C272 266 256 250 256 210 Z" 
+          fill="#FFFFFF"/>
+
+    <!-- Secondary Accent Sparkle (Mint Glow) -->
+    <path d="M336 196 
+             C336 214 328 222 310 222 
+             C328 222 336 230 336 248 
+             C336 230 344 222 362 222 
+             C344 222 336 214 336 196 Z" 
+          fill="#6EE7B7"/>
+  </g>
+</svg>

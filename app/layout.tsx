@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import './globals.css';
-export const metadata:Metadata={title:'Job Assistant — Your next chapter',description:'A personal job search workspace for senior engineers.'};
+export const metadata:Metadata={title:'Job Assistant — Your next chapter',description:'A personal job search workspace for senior engineers.',icons:{icon:{url:'/job-icon.svg',type:'image/svg+xml',sizes:'any'}}};
 export default function RootLayout({children}:{children:React.ReactNode}){
  return <html lang="en">
   {/* Browser extensions can add body attributes before hydration. Keep suppression scoped here. */}
