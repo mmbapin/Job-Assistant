@@ -46,13 +46,26 @@ export default function Home() {
     [notice, setNotice] = useState(""),
     [filters, setFilters] = useState(false),
     [verified, setVerified] = useState(false),
-    [shownJobs, setShownJobs] = useState(JOBS_PER_PAGE);
+    [shownJobs, setShownJobs] = useState(JOBS_PER_PAGE),
+    [loadingProgress, setLoadingProgress] = useState(1);
   const [feed, setFeed] = useState<FeedState | null>(null),
     [demoJobs, setDemoJobs] = useState<Job[]>(() => seed().jobs);
   const fetching = useRef(false);
+  const initialLoading = useRef(true);
   useEffect(() => {
     void sync();
   }, []);
+  useEffect(() => {
+    if (data && feed) return;
+    const timer = window.setInterval(
+      () =>
+        setLoadingProgress((progress) =>
+          progress >= 95 ? progress : progress + 1,
+        ),
+      80,
+    );
+    return () => window.clearInterval(timer);
+  }, [data, feed]);
   useEffect(() => {
     setShownJobs(JOBS_PER_PAGE);
   }, [view, query, tab, skill, level, sort, verified, feed]);
@@ -91,9 +104,14 @@ export default function Home() {
     setNotice("");
     try {
       const result = await fetchJobFeed();
+      if (initialLoading.current) {
+        setLoadingProgress(100);
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+      }
       setData((current) => result.data || current || { ...seed(), jobs: [] });
       setFeed(result.feed);
     } finally {
+      initialLoading.current = false;
       fetching.current = false;
       setBusy(false);
     }
@@ -108,7 +126,40 @@ export default function Home() {
           height={64}
           priority
         />
-        <h2>Fetching real jobs…</h2>
+        <h2>{loadingProgress === 100 ? "Jobs are ready" : "Fetching real jobs…"}</h2>
+        <div
+          role="progressbar"
+          aria-label="Loading job opportunities"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={loadingProgress}
+          style={{ width: "min(320px, 76vw)" }}
+        >
+          <div
+            style={{
+              height: 8,
+              overflow: "hidden",
+              borderRadius: 999,
+              background: "#dce9e4",
+            }}
+          >
+            <div
+              style={{
+                width: `${loadingProgress}%`,
+                height: "100%",
+                borderRadius: 999,
+                background: "#16846a",
+                transition: "width 120ms ease-out",
+              }}
+            />
+          </div>
+          <strong
+            aria-live="polite"
+            style={{ display: "block", marginTop: 10, textAlign: "center" }}
+          >
+            {loadingProgress}%
+          </strong>
+        </div>
         {notice && <p>{notice}</p>}
       </div>
     );

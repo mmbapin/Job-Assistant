@@ -148,7 +148,7 @@ These are text heuristics, not a guarantee of work authorization or employer eli
 * Hidden jobs.
 * Editable candidate profile.
 * Career-page watchlist, source detection, pause/enable controls, and per-source sync feedback.
-* Real-job-first loading with demo fallback and retry actions.
+* Real-job-first loading with a 1–100% progress screen, demo fallback, and retry actions.
 
 == Supported sources
 
