@@ -18,6 +18,7 @@ async function htmlJobs(source:Source){if(!source.htmlAllowed)throw Error('HTML 
  const links=companyLinks(html,source.url!);if(!links.length)throw Error('No supported job data found. This page may need a site-specific API/parser or may have no openings.');
  const result:Job[]=[];for(const link of links.slice(0,25)){const detail=await readCareerPage(link);const schema=structuredJobs(detail);if(schema.length){result.push(...schema.map(r=>normalize(source,{...r,url:r.url||link})));continue;}const $=load(detail);$('script,style,nav,footer,header').remove();const title=$('h1').first().text().trim()||(['vivasoftltd.com','www.vivasoftltd.com'].includes(new URL(link).hostname)?$('h2,h3').first().text().trim():'');const description=$('main').text().trim()||$('body').text().trim();if(!title)throw Error('Company page layout changed: missing job title');const location=/Dhaka|Bangladesh/i.test(description)?'Dhaka, Bangladesh':'Not specified';result.push(normalize(source,{title,description,location,url:link}));}return result;}
 export async function collect(source:Source):Promise<Job[]>{
+ if(source.provider==='Greenhouse'&&source.titleFilter==='frontend')return collectFilteredGreenhouse(source);
  if(source.provider==='Unsupported')throw Error(source.detection||'No supported interface detected');
  if(source.provider==='Custom API'){
   if(source.board==='wsd-development-dhaka')return (await collectWsd()).map(row=>normalize(source,row));
@@ -128,6 +129,26 @@ export async function collectEngineeringCareer(source:Source,read:typeof readCar
   if(departments.some(d=>d?.toLowerCase()!=='engineering')||deadlines.some(d=>careerDeadline(d)<now))continue;
   const location=typeof schema.jobLocation?.address==='string'?schema.jobLocation.address:row.location;
   jobs.push(normalize(source,{...schema,location,url:row.url}));
+ }
+ return jobs;
+}
+
+
+export function isFrontendTitle(title:string){return /\bfront[\s-]*end\b/i.test(title);}
+export async function collectFilteredGreenhouse(source:Source,read:typeof safeFetch=safeFetch):Promise<Job[]>{
+ const base=`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(source.board)}/jobs`;
+ const listing=await read(base);if(listing.status!==200)throw Error(`Greenhouse returned HTTP ${listing.status}`);
+ const body=JSON.parse(listing.text);if(!Array.isArray(body.jobs))throw Error('Unexpected Greenhouse job list');
+ const matches=body.jobs.filter((r:Record<string,any>)=>typeof r.title==='string'&&isFrontendTitle(r.title));
+ const jobs:Job[]=[];
+ for(const row of matches){
+  if(!/^\d+$/.test(String(row.id)))throw Error('Invalid Greenhouse job ID');
+  const response=await read(`${base}/${row.id}`);
+  if(response.status===404||response.status===410)continue;
+  if(response.status!==200)throw Error(`Greenhouse job detail returned HTTP ${response.status}`);
+  const detail=JSON.parse(response.text);
+  if(String(detail.id)!==String(row.id)||typeof detail.title!=='string'||typeof detail.content!=='string')throw Error('Unexpected Greenhouse job detail');
+  if(isFrontendTitle(detail.title))jobs.push(normalize(source,detail));
  }
  return jobs;
 }

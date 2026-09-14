@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {collectFilteredGreenhouse,isFrontendTitle} from './collect';
+import {detectSource,validateSource} from './sources';
+import {classify} from './model';
+import {seed} from './seed';
+const source=()=>detectSource(validateSource({company:'Agoda',url:'https://careersatagoda.com/vacancies/?keyword=Front+End+&country='}));
+test('Agoda uses a filtered global Greenhouse source',async()=>{const s=await source();assert.equal(s.provider,'Greenhouse');assert.equal(s.board,'agoda');assert.equal(s.category,'Global');assert.equal(s.titleFilter,'frontend');});
+test('frontend spellings match without including backend descriptions',()=>{for(const s of ['Frontend Engineer','Front-End Engineer','Staff Front End AI'])assert.ok(isFrontendTitle(s));assert.equal(isFrontendTitle('Backend Engineer'),false);});
+test('only matching detail requests are made without downloading the full content feed',async()=>{const calls:string[]=[];const s=await source();const jobs=await collectFilteredGreenhouse(s,async url=>{calls.push(url);return {status:200,url,text:JSON.stringify(url.endsWith('/jobs')?{jobs:[{id:1,title:'Frontend Engineer'},{id:2,title:'Backend Engineer'}]}:{id:1,title:'Frontend Engineer',content:'React and TypeScript',location:{name:'Bangkok'},absolute_url:'https://job-boards.greenhouse.io/agoda/jobs/1'})};});assert.equal(calls.length,2);assert.ok(!calls[0].includes('content=true'));assert.equal(jobs.length,1);assert.equal(jobs[0].location,'Bangkok');});
+test('removed detail is skipped and API failure stays visible',async()=>{const s=await source();const jobs=await collectFilteredGreenhouse(s,async url=>({status:url.endsWith('/jobs')?200:404,url,text:JSON.stringify({jobs:[{id:1,title:'Frontend Engineer'}]})}));assert.deepEqual(jobs,[]);await assert.rejects(()=>collectFilteredGreenhouse(s,async url=>({status:503,url,text:''})),/503/);});
+test('explicit relocation provided in title is preserved as evidence',()=>{const job={...seed().jobs[0],title:'Staff Front End Engineer (Bangkok based, Relocation provided)',location:'Bangkok',description:'Build React applications.'};assert.equal(classify(job).group,'Relocation');assert.match(classify(job).evidence||'',/Relocation provided/);assert.equal(classify({...job,title:'Staff Front End Engineer (No relocation provided)'}).eligible,false);});

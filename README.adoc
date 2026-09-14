@@ -373,3 +373,9 @@ Potential next steps are a configured global company watchlist, broader Adzuna q
 |Changes are not retained after deployment |Use a persistent writable disk and a single Node process; ephemeral hosting does not preserve the local JSON store.
 |Browser-extension hydration warning |The root body suppresses attribute warnings caused by extensions such as Grammarly. Other hydration warnings still require investigation.
 |===
+
+== Agoda global Front End source
+
+The Agoda vacancy-search URL connects to its public Greenhouse board with a Front End title filter (including Frontend and Front-End spellings). It is grouped under Global and retains every matching job's actual location; Global does not mean worldwide remote.
+
+Collection first requests the lightweight job list, then retrieves descriptions only for matching titles. This avoids downloading Agoda's full content feed, which exceeds the HTTP client's 5 MB limit. The source runs through the existing sync, deduplication, and feedback flows. Explicit “relocation provided” statements in titles or descriptions are included in the existing relocation classification.
