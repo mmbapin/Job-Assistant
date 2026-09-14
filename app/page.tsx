@@ -284,6 +284,7 @@ export default function Home() {
               {busy ? "Collecting…" : "Sync jobs"}
             </button>
           </div>
+          {data?.temporary && <div className="feed-banner feed-warning" role="status"><p>Live jobs are fetched from the default sources. Saved jobs, profile edits, and source changes are temporary and may reset between requests or deployments.</p></div>}
           {feed.message && (
             <div
               className={`feed-banner ${feed.reason === "error" ? "feed-error" : "feed-warning"}`}

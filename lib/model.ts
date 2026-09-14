@@ -19,6 +19,7 @@ export type Job = {
   salary: string;
   source: string;
   demo?: boolean;
+  allowedCountries?: string[];
   status: Status;
 };
 export type Profile = { name: string; experience: number; skills: string[] };
@@ -47,7 +48,7 @@ export type Source = {
   lastCount?: number;
   error?: string;
 };
-export type Store = { jobs: Job[]; profile: Profile; sources: Source[] };
+export type Store = { temporary?: boolean; jobs: Job[]; profile: Profile; sources: Source[] };
 export const allSkills = [
   "React",
   "TypeScript",
@@ -61,6 +62,7 @@ export const allSkills = [
   "Redis",
 ];
 export function classify(job: Job) {
+  if(job.allowedCountries?.length&&!job.allowedCountries.includes("BD"))return {group:"Other",eligible:false,note:"Employer country restriction excludes Bangladesh"};
   const text = `${job.location} ${job.description}`;
   const evidence = `${job.title}\n${job.description}`
     .split(/[.!\n]+/)

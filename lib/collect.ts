@@ -21,6 +21,7 @@ export async function collect(source:Source):Promise<Job[]>{
  if(source.provider==='Greenhouse'&&(source.titleFilter==='frontend'||source.titleFilter==='frontend-fullstack'))return collectFilteredGreenhouse(source);
  if(source.provider==='Unsupported')throw Error(source.detection||'No supported interface detected');
  if(source.provider==='Custom API'){
+  if(source.board==='remoteintegrity-frontend-fullstack')return collectRemoteIntegrity(source);
   if(source.board==='wsd-development-dhaka')return (await collectWsd()).map(row=>normalize(source,row));
   if(source.board!=='tekarsh')throw Error('Unknown custom API adapter');
   const body=JSON.parse(await readCareerPage('https://tekarsh.com/api/admin/jobs?limit=1000'));const rows=body.jobs||body;if(!Array.isArray(rows))throw Error('Unexpected Tekarsh API response');
@@ -152,4 +153,24 @@ export async function collectFilteredGreenhouse(source:Source,read:typeof safeFe
   if(matchesGreenhouseTitle(detail.title,source.titleFilter))jobs.push(normalize(source,detail));
  }
  return jobs;
+}
+
+
+// Public endpoint used by Remote Integrity's career portal.
+export async function collectRemoteIntegrity(source:Source,read:typeof safeFetch=safeFetch):Promise<Job[]>{
+ const response=await read('https://atsserver.remoteintegrity.com/api/v1/ats-jobs/open');
+ if(response.status!==200)throw Error(`Remote Integrity returned HTTP ${response.status}`);
+ let body;try{body=JSON.parse(response.text);}catch{throw Error('Remote Integrity did not return valid JSON');}
+ if(body?.success!==true||!Array.isArray(body.data))throw Error('Unexpected Remote Integrity API response');
+ return body.data.filter((r:any)=>r&&r.status==='Open'&&r.isDeleted!==true&&typeof r.title==='string'&&matchesGreenhouseTitle(r.title,'frontend-fullstack')).map((r:any)=>{
+  if(typeof r._id!=='string'||!/^[a-f0-9]{24}$/i.test(r._id))throw Error('Remote Integrity job is missing a valid ID');
+  const description=[r.description,r.requirements].filter(v=>typeof v==='string').join('\n');
+  const countries=Array.isArray(r.allowedCountries)?r.allowedCountries.filter((v:unknown)=>typeof v==='string').map((v:string)=>v.toUpperCase()):[];
+  const location=r.location?.trim()||description.match(/^\s*#{0,6}\s*Location:\s*(.+)$/im)?.[1]?.trim()||'Not specified';
+  const job=normalize(source,{id:r._id,title:r.title,company:{display_name:r.company?.name},description:description+(countries.length?'\nEligible applicant countries: '+countries.join(', '):''),location,createdAt:r.createdAt,url:`https://careers.remoteintegrity.com/?job=${encodeURIComponent(r._id)}`});
+  if(countries.length)job.allowedCountries=countries;
+  const salary=r.salary;
+  if(salary?.hideSalary===false&&typeof salary.currency==='string'&&Number.isFinite(salary.min)&&Number.isFinite(salary.max))job.salary=`${salary.currency} ${salary.min.toLocaleString('en-US')}${salary.max!==salary.min?' – '+salary.max.toLocaleString('en-US'):''}`;
+  return job;
+ });
 }

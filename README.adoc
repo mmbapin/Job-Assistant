@@ -22,7 +22,7 @@ Job Assistant collects public vacancies, normalizes them, explains their match t
 |Icons |Lucide React |Interface icons.
 |HTML parsing |Cheerio |Career-page extraction and schema.org JobPosting parsing, without executing page JavaScript.
 |Crawler policy |robots-parser |Checks robots.txt when reading career pages.
-|Persistence |Local JSON file |Stores jobs, profile settings, and sources in `data/store.json`.
+|Persistence |Temporary memory / local JSON |Temporary instance memory on Vercel; `data/store.json` for local development.
 |Tests |Node.js test runner and tsx |Runs TypeScript regression tests with `npm test`.
 |Package management |npm |Dependency installation, lockfile, and development scripts.
 |===
@@ -43,7 +43,7 @@ Browser: React dashboard
   |
   +-- GET /api/data ----------------------------+
   |                                            |
-  +-- POST /api/data --> validate mutations ----+--> Local JSON store
+  +-- POST /api/data --> validate mutations ----+--> Temporary memory / local JSON store
   |                                            |    data/store.json
   +-- POST /api/sync                            |
          |                                     |
@@ -91,7 +91,11 @@ Enabled sources are collected concurrently. A failure in one source is recorded 
 
 Collectors map source-specific responses into a shared job model. Jobs are deduplicated by their generated ID or an exact original-listing URL. Existing application statuses and stored publication timestamps are preserved during updates.
 
-`lib/store.ts` serializes writes within the Node process. Each update writes a temporary file and renames it over `data/store.json`. This avoids overlapping in-process writes and partial replacement of the main file; it is not a multi-process database or a backup system.
+`lib/store.ts` serializes writes within the Node process. In local development,
+each update writes a temporary file and renames it over `data/store.json`. On
+Vercel, it uses temporary instance memory so sync can return real jobs without
+writing to the read-only deployment filesystem. That temporary state can reset
+between requests, instance changes, and deployments.
 
 The sync response includes IDs returned by the current collection. The Discover feed uses those IDs instead of showing every historical job in storage. Stored saved jobs and application history remain available even when a listing no longer appears in the current feed.
 
@@ -240,7 +244,7 @@ lib/
   safe-fetch.ts               Protected outbound HTTPS client
   collect.ts                  Collectors, HTML parsers, normalization
   wsd.ts                      WSD's BambooHR response and scope handling
-  store.ts                    Local persistence and serialized writes
+  store.ts                    Temporary memory / local serialized writes
   job-feed.ts                 API loading and real/demo feed decisions
   seed.ts                     Default profile and fictional demo jobs
   request-origin.ts           Origin checks for write requests
@@ -340,9 +344,9 @@ Career-page readers check robots.txt and recheck redirect destinations before fe
 
 Write routes perform origin checks when an Origin header is supplied. There is currently no authentication, authorization, or application rate limiting. Origin checks are not a substitute for those controls.
 
-This version is intended for a single user running one Node process with a persistent writable disk. Do not expose the write APIs as a public shared service. Ephemeral serverless filesystems and multiple application instances are not supported by the JSON store.
+This version stores one shared workspace. Vercel uses temporary instance memory; local JSON requires one Node process with a persistent writable disk. Authentication is not implemented: anyone who can access the app can view and change the shared workspace. Restrict access for personal use.
 
-Before a shared production deployment, add authentication, durable database storage, appropriate request controls, backups, and collection scheduling suited to the hosting environment.
+Before a shared production deployment, add authentication, appropriate request controls, backups, and collection scheduling suited to the hosting environment.
 
 == Current limitations and next steps
 
@@ -370,7 +374,7 @@ Potential next steps are a configured global company watchlist, broader Adzuna q
 |One source fails |Open Sources and read its error. Confirm the URL/slug and whether the site changed, timed out, or disallows collection.
 |Adzuna asks for credentials |Set both variables in `.env.local` and restart the server.
 |A company returns zero jobs |Check its configured category/title/location filters and the employer's current openings. Zero is not necessarily an error.
-|Changes are not retained after deployment |Use a persistent writable disk and a single Node process; ephemeral hosting does not preserve the local JSON store.
+|Changes are not retained after deployment |Vercel mode does not persist changes; local JSON requires a persistent disk and one Node process.
 |Browser-extension hydration warning |The root body suppresses attribute warnings caused by extensions such as Grammarly. Other hydration warnings still require investigation.
 |===
 
@@ -379,3 +383,37 @@ Potential next steps are a configured global company watchlist, broader Adzuna q
 The Agoda vacancy-search URL connects to its public Greenhouse board with a Front End or Full Stack title filter (including Frontend, Front-End, Fullstack, and Full-Stack spellings). It is grouped under Global and retains every matching job's actual location; Global does not mean worldwide remote.
 
 Collection first requests the lightweight job list, then retrieves descriptions only for matching titles. This avoids downloading Agoda's full content feed, which exceeds the HTTP client's 5 MB limit. The source runs through the existing sync, deduplication, and feedback flows. Explicit “relocation provided” statements in titles or descriptions are included in the existing relocation classification.
+
+
+== Remote Integrity
+
+Add `https://careers.remoteintegrity.com/` from the Bangladesh career watchlist.
+The shared collector uses the portal's public jobs API and imports open Frontend
+and Full Stack titles. Closed, deleted, and unrelated roles are excluded.
+Each job retains its actual employer, original career link, published salary
+(unless hidden), and applicant country restrictions. Remote does not imply
+worldwide eligibility. No API credentials are required. Use Sync jobs after adding.
+
+
+== RemoteHunter
+
+The Global career watchlist includes a manual link to RemoteHunter's Software
+Developer search: https://www.remotehunter.com/jobs?search=Software+Developer[].
+RemoteHunter's https://www.remotehunter.com/robots.txt[robots rules] disallow
+collection from `/jobs` and `/job`. This link does not import jobs or participate
+in Sync jobs. Automated integration requires a permitted API or feed.
+
+
+== Deploying to Vercel without a database
+
+Deploy the updated code and keep ADZUNA_APP_ID and ADZUNA_APP_KEY in Vercel's
+Production environment. No database configuration is needed. The VERCEL environment
+flag selects temporary in-memory storage instead of writing to the read-only disk.
+Default sources in lib/default-sources.ts are available on every fresh instance;
+Adzuna UK is included when both credentials are configured. The app fetches live
+jobs on load and on Sync jobs, retaining its error and demo fallback feedback.
+
+Saved jobs, profile edits, added or removed sources, and application history are
+only temporary on Vercel. Different requests may reach different instances and
+show reset state. The app displays this limitation. Local development still uses
+data/store.json, which remains excluded from Git. Local state is not deployed.

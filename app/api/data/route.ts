@@ -4,7 +4,7 @@ import {readStore,updateStore} from '@/lib/store';
 import {Status} from '@/lib/model';
 import {validateSource,detectSource} from '@/lib/sources';
 export const dynamic='force-dynamic';
-export async function GET(){return NextResponse.json(await readStore());}
+export async function GET(){try{return NextResponse.json(await readStore());}catch(e){return NextResponse.json({error:(e as Error).message},{status:503});}}
 export async function POST(req:NextRequest){
  if(!sameOrigin(req))return NextResponse.json({error:'Invalid origin'},{status:403});
  try {const b=await req.json();let candidate=b.action==='source'?validateSource(b):null;if(candidate?.url)candidate=await detectSource(candidate);
