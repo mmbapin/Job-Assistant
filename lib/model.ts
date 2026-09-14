@@ -41,7 +41,7 @@ export type Source = {
   enabled?: boolean;
   htmlAllowed?: boolean;
   region?: "global" | "eu";
-  titleFilter?: "frontend";
+  titleFilter?: "frontend" | "frontend-fullstack";
   detection?: string;
   lastSync?: string;
   lastCount?: number;
