@@ -26,6 +26,7 @@ import { allSkills, Job, match, Status, Store } from "@/lib/model";
 import { Sources } from "./components/sources";
 import { seed } from "@/lib/seed";
 import { FeedState, fetchJobFeed, feedJobs } from "@/lib/job-feed";
+const JOBS_PER_PAGE = 20;
 type View =
   | "Discover"
   | "Saved jobs"
@@ -44,13 +45,17 @@ export default function Home() {
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
     [filters, setFilters] = useState(false),
-    [verified, setVerified] = useState(false);
+    [verified, setVerified] = useState(false),
+    [shownJobs, setShownJobs] = useState(JOBS_PER_PAGE);
   const [feed, setFeed] = useState<FeedState | null>(null),
     [demoJobs, setDemoJobs] = useState<Job[]>(() => seed().jobs);
   const fetching = useRef(false);
   useEffect(() => {
     void sync();
   }, []);
+  useEffect(() => {
+    setShownJobs(JOBS_PER_PAGE);
+  }, [view, query, tab, skill, level, sort, verified, feed]);
   async function mutate(body: object) {
     const change = body as { action?: string; id?: string; status?: Status };
     if (
@@ -143,6 +148,7 @@ export default function Home() {
         ? b.score - a.score
         : Date.parse(b.posted) - Date.parse(a.posted),
     );
+  const paginatedJobs = jobs.slice(0, shownJobs);
   const active = selected
     ? [...data.jobs.filter((j) => !j.demo), ...demoJobs].find(
         (j) => j.id === selected.id,
@@ -542,7 +548,8 @@ export default function Home() {
               )}
               <div className="results-meta">
                 <span>
-                  Showing <strong>{jobs.length}</strong> opportunities
+                  Showing <strong>{paginatedJobs.length}</strong> of{" "}
+                  <strong>{jobs.length}</strong> opportunities
                 </span>
                 <span>
                   <span className="tiny-dot" />
@@ -550,7 +557,7 @@ export default function Home() {
                 </span>
               </div>
               <div className="job-list">
-                {jobs.map((j) => (
+                {paginatedJobs.map((j) => (
                   <article key={j.id} className="job-card">
                     <div
                       className={
@@ -655,6 +662,30 @@ export default function Home() {
                   </article>
                 ))}
               </div>
+              {paginatedJobs.length < jobs.length && (
+                <div
+                  className="load-more"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 9,
+                    padding: "24px 0 4px",
+                  }}
+                >
+                  <button
+                    className="primary"
+                    onClick={() =>
+                      setShownJobs((count) => count + JOBS_PER_PAGE)
+                    }
+                  >
+                    Load more
+                  </button>
+                  <span style={{ fontSize: 10, color: "#99a0aa" }}>
+                    {jobs.length - paginatedJobs.length} opportunities remaining
+                  </span>
+                </div>
+              )}
               {!jobs.length && (
                 <div className="empty">
                   <Search size={32} />
